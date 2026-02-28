@@ -1,16 +1,18 @@
+import 'express-async-errors';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import http from 'http';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-import bibleRoutes from './routes/bible.routes.js';
-import authRoutes from './routes/auth.routes.js';
-import { AuthService } from './services/auth.service.js';
+import bibleRoutes from './routes/bible.routes';
+import authRoutes from './routes/auth.routes';
+import chatRoutes from './routes/chat.routes';
+import { AuthService } from './services/auth.service';
+import { ChatService } from './services/chat.service';
+import { WebSocketService } from './services/websocket.service';
+import aiRoutes from './routes/ai.routes';
 
 dotenv.config();
 
@@ -24,10 +26,24 @@ process.on('unhandledRejection', (reason, promise) => {
 
 // Inicializa o banco de dados/seed
 AuthService.init();
+ChatService.init();
 
-const app = express();
+export const app = express();
+// also provide a default export for easier imports in tests
+export default app;
 const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'secret_key';
+let JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+    if (process.env.NODE_ENV === 'test') {
+        // provide a default secret for tests to avoid process.exit during CI
+        JWT_SECRET = 'test_jwt_secret';
+        process.env.JWT_SECRET = JWT_SECRET;
+        console.warn('JWT_SECRET ausente — usando segredo de teste.');
+    } else {
+        console.error('FATAL: JWT_SECRET não definido. Abortando.');
+        process.exit(1);
+    }
+}
 
 // Middlewares
 app.use(helmet());
@@ -37,18 +53,31 @@ app.use(express.json());
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/bible', bibleRoutes);
+app.use('/api/chat', chatRoutes);
+app.use('/api/ai', aiRoutes);
 
 app.get('/api', (req, res) => {
     res.json({ message: 'BibleAppPro API rodando 🚀' });
 });
 
-// Arquivo XML da Bíblia
-const xmlPath = path.join(__dirname, '..', '..', 'PortugueseBible.xml');
+// Error handler last
+import { errorHandler } from './middleware/error.middleware';
+app.use(errorHandler);
 
-try {
-    app.listen(PORT, () => {
-        console.log(`[server]: BibleAppPro rodando em http://localhost:${PORT}`);
-    });
-} catch (error) {
-    console.error('[server]: Erro ao iniciar servidor listen:', error);
+
+// Arquivo XML da Bíblia
+// note: rely on current working directory when server starts
+const xmlPath = path.join(process.cwd(), 'PortugueseBible.xml');
+
+if (process.env.NODE_ENV !== 'test') {
+    try {
+        const server = http.createServer(app);
+        WebSocketService.init(server);
+        server.listen(PORT, () => {
+            console.log(`[server]: BibleAppPro rodando em http://localhost:${PORT}`);
+            console.log(`[server]: WebSocket disponível em ws://localhost:${PORT}`);
+        });
+    } catch (error) {
+        console.error('[server]: Erro ao iniciar servidor listen:', error);
+    }
 }

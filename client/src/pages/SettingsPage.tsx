@@ -1,5 +1,5 @@
 import React from 'react';
-import { User, Crown, Palette, ChevronRight, LogOut } from 'lucide-react';
+import { Crown, Palette, ChevronRight, LogOut, Info } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
@@ -16,6 +16,7 @@ export const SettingsPage: React.FC = () => {
     const menuItems = [
         { icon: Palette, label: 'Personalização', desc: `Tema: ${theme === 'light' ? 'Claro' : theme === 'dark' ? 'Escuro' : 'Sépia'}`, path: '/personalization' },
         { icon: Crown, label: 'Premium', desc: 'Desbloqueie recursos avançados', path: '/premium' },
+        { icon: Info, label: 'Sobre o App', desc: 'Missão, valores e versão', path: '/about' },
     ];
 
     return (

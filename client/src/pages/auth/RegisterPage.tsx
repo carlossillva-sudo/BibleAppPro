@@ -39,8 +39,9 @@ export const RegisterPage: React.FC = () => {
                 password: data.password
             });
             navigate('/login');
-        } catch (err: any) {
-            setError(err.response?.data?.message || 'Erro ao realizar cadastro');
+        } catch (err: unknown) {
+            const axiosErr = err as { response?: { data?: { message?: string } } };
+            setError(axiosErr.response?.data?.message || 'Erro ao realizar cadastro');
         } finally {
             setLoading(false);
         }

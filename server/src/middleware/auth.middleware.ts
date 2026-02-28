@@ -8,7 +8,8 @@ export const authMiddleware = (req: any, res: any, next: any) => {
     }
 
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret_key');
+        if (!process.env.JWT_SECRET) throw new Error('JWT secret não configurado');
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
         req.user = decoded;
         next();
     } catch (error) {

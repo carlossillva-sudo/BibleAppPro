@@ -33,8 +33,9 @@ export const LoginPage: React.FC = () => {
             const result = await authService.login(data);
             setAuth(result.user, result.token);
             navigate('/dashboard');
-        } catch (err: any) {
-            setError(err.response?.data?.message || 'Erro ao realizar login');
+        } catch (err: unknown) {
+            const axiosErr = err as { response?: { data?: { message?: string } } };
+            setError(axiosErr.response?.data?.message || 'Erro ao realizar login');
         } finally {
             setLoading(false);
         }

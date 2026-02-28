@@ -1,14 +1,10 @@
 import fs from 'fs';
 import path from 'path';
 import { XMLParser } from 'fast-xml-parser';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 export interface Verse {
     number: string;
-    text: string;
+    content: string;
 }
 
 export interface Chapter {
@@ -28,17 +24,18 @@ export interface Testament {
 }
 
 export interface BibleData {
+    id: string;
     translation: string;
-    testaments: Testament[];
+    books: Book[];
 }
 
 class BibleService {
-    private bibleData: BibleData | null = null;
-    private readonly xmlPath = path.join(__dirname, '..', '..', '..', 'PortugueseBible.xml');
-
-    constructor() {
-        this.loadBible();
-    }
+    private bibles: Map<string, BibleData> = new Map();
+    private booksMaps: Map<string, Map<string, Book>> = new Map();
+    private versionsList: { id: string, name: string }[] = [];
+    private readyPromise: Promise<void>;
+    private isLoaded: boolean = false;
+    private loadError: string | null = null;
 
     private readonly bookNames: Record<string, string> = {
         "1": "Gênesis", "2": "Êxodo", "3": "Levítico", "4": "Números", "5": "Deuteronômio",
@@ -56,51 +53,170 @@ class BibleService {
         "61": "2 Pedro", "62": "1 João", "63": "2 João", "64": "3 João", "65": "Judas", "66": "Apocalipse"
     };
 
-    private loadBible() {
+    constructor() {
+        this.readyPromise = this.initialize();
+    }
+
+    private async ensureLoaded(): Promise<void> {
+        await this.readyPromise;
+    }
+
+    private async initialize(): Promise<void> {
+        return this.loadAllBibles();
+    }
+
+    private async loadAllBibles(): Promise<void> {
         try {
-            const xmlContent = fs.readFileSync(this.xmlPath, 'utf8');
+            const rootDir = process.cwd();
+            const files = fs.readdirSync(rootDir);
+            const bibleFiles = files.filter(f => f.startsWith('Portuguese') && f.endsWith('.xml'));
+
+            if (bibleFiles.length === 0) {
+                const parentDir = path.join(rootDir, '..');
+                if (fs.existsSync(parentDir)) {
+                    const parentDirFiles = fs.readdirSync(parentDir);
+                    const parentBibleFiles = parentDirFiles.filter(f => f.startsWith('Portuguese') && f.endsWith('.xml'));
+                    if (parentBibleFiles.length > 0) {
+                        process.chdir('..');
+                        return this.loadAllBibles();
+                    }
+                }
+                throw new Error('Nenhum arquivo de Bíblia XML encontrado no diretório raiz.');
+            }
+
             const parser = new XMLParser({
                 ignoreAttributes: false,
                 attributeNamePrefix: '',
                 textNodeName: 'text'
             });
-            const jsonObj = parser.parse(xmlContent);
 
-            const bible = jsonObj.bible;
-            const testaments = Array.isArray(bible.testament) ? bible.testament : [bible.testament];
+            for (const file of bibleFiles) {
+                const filePath = path.join(rootDir, file);
+                try {
+                    const xml = fs.readFileSync(filePath, 'utf8');
+                    const jsonObj = parser.parse(xml);
+                    const bible = jsonObj.bible;
 
-            this.bibleData = {
-                translation: bible.translation,
-                testaments: testaments.map((t: any) => ({
-                    name: t.name,
-                    books: (Array.isArray(t.book) ? t.book : [t.book]).map((b: any) => ({
-                        number: b.number,
-                        name: this.bookNames[b.number] || `Livro ${b.number}`,
-                        chapters: (Array.isArray(b.chapter) ? b.chapter : [b.chapter]).map((c: any) => ({
-                            number: c.number,
-                            verses: (Array.isArray(c.verse) ? c.verse : [c.verse]).map((v: any) => ({
-                                number: v.number,
-                                text: v.text || v['#text'] || ''
-                            }))
-                        }))
-                    }))
-                }))
-            };
-            console.log(`[BibleService]: Bíblia carregada com sucesso. Tradução: ${this.bibleData.translation}`);
-        } catch (error) {
-            console.error('[BibleService]: Erro ao carregar a Bíblia:', error);
+                    if (bible && bible.testament) { // Check for bible.testament as well
+                        let versionId = file.replace('Portuguese', '').replace('Bible.xml', '') || 'PADRAO';
+
+                        // Robust book mapping
+                        const books: Book[] = [];
+                        const testaments = Array.isArray(bible.testament) ? bible.testament : [bible.testament];
+
+                        for (const t of testaments) {
+                            if (!t || !t.book) continue;
+                            const testamentBooks = Array.isArray(t.book) ? t.book : [t.book];
+                            for (const b of testamentBooks) {
+                                if (!b || !b.number) {
+                                    console.warn(`[BibleService] Book missing number in ${file}`);
+                                    continue;
+                                }
+                                books.push({
+                                    number: b.number,
+                                    name: (this.bookNames as any)[b.number] || `Livro ${b.number}`,
+                                    chapters: (Array.isArray(b.chapter) ? b.chapter : [b.chapter]).map((c: any) => ({
+                                        number: c.number,
+                                        verses: (Array.isArray(c.verse) ? c.verse : [c.verse]).map((v: any) => ({
+                                            number: v.number,
+                                            content: String(v.text || v['#text'] || '').trim() // Changed from 'text' to 'content'
+                                        }))
+                                    }))
+                                });
+                            }
+                        }
+
+                        const bibleData: BibleData = {
+                            id: versionId,
+                            translation: bible.translation || versionId,
+                            books: books
+                        };
+
+                        this.bibles.set(versionId, bibleData);
+                        this.versionsList.push({ id: versionId, name: bibleData.translation });
+
+                        const bookMap = new Map<string, Book>();
+                        books.forEach(book => bookMap.set(book.number.toString(), book));
+                        this.booksMaps.set(versionId, bookMap);
+
+                        console.log(`[BibleService]: Versão carregada: ${versionId} (${bibleData.translation}) - Livros: ${books.length}`);
+                    } else {
+                        console.warn(`[BibleService]: Arquivo ${file} não contém estrutura de Bíblia válida.`);
+                    }
+                } catch (error: any) {
+                    console.error(`[BibleService]: Erro ao carregar o arquivo ${file}:`, error.message);
+                }
+            }
+
+            this.isLoaded = true;
+        } catch (error: any) {
+            this.loadError = error.message;
+            console.error('[BibleService]: Erro ao carregar as Bíblias:', error);
         }
     }
 
-    public getBooks() {
-        if (!this.bibleData) return [];
-        return this.bibleData.testaments.flatMap(t => t.books);
+    public getStatus() {
+        return { isLoaded: this.isLoaded, versionsCount: this.bibles.size, error: this.loadError };
     }
 
-    public getChapter(bookNumber: string, chapterNumber: string) {
-        const book = this.getBooks().find(b => b.number === bookNumber);
+    public async getVersions() {
+        await this.ensureLoaded();
+        return this.versionsList;
+    }
+
+    private async getFirstVersionId(): Promise<string> {
+        await this.ensureLoaded();
+        return this.versionsList[0]?.id || '';
+    }
+
+    public async getBooks(versionId?: string) {
+        await this.ensureLoaded();
+        const vid = versionId || await this.getFirstVersionId();
+        const bible = this.bibles.get(vid);
+        if (!bible) return [];
+        return bible.books;
+    }
+
+    public async getChapter(bookNumber: string, chapterNumber: string, versionId?: string) {
+        await this.ensureLoaded();
+        const vid = versionId || await this.getFirstVersionId();
+        const booksMap = this.booksMaps.get(vid);
+        if (!booksMap) return null;
+
+        const book = booksMap.get(bookNumber);
         if (!book) return null;
+
         return book.chapters.find(c => c.number === chapterNumber) || null;
+    }
+
+    public async searchContent(query: string, versionId?: string) {
+        await this.ensureLoaded();
+        if (!this.isLoaded) return [];
+        const vid = versionId || await this.getFirstVersionId();
+        const books = await this.getBooks(vid);
+        if (books.length === 0) return [];
+
+        const results = [];
+        const normalizedQuery = query.toLowerCase();
+
+        for (const book of books) {
+            for (const chapter of book.chapters) {
+                for (const verse of chapter.verses) {
+                    if (verse.content.toLowerCase().includes(normalizedQuery)) {
+                        results.push({
+                            bookNumber: book.number,
+                            bookName: book.name,
+                            chapterNumber: chapter.number,
+                            verseNumber: verse.number,
+                            content: verse.content,
+                            version: vid
+                        });
+                    }
+                    if (results.length >= 50) return results;
+                }
+            }
+        }
+        return results;
     }
 }
 

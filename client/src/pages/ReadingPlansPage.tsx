@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Plus, X, BookOpen, Flame, Target, Check } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { PlanCard, type PlanData } from '../components/plans/PlanCard';
 
 const DEFAULT_PLANS: PlanData[] = [
@@ -43,6 +44,9 @@ export const ReadingPlansPage: React.FC = () => {
     const [newDays, setNewDays] = useState('30');
     const [filter, setFilter] = useState<'all' | 'active' | 'complete'>('all');
     const [justCreated, setJustCreated] = useState<string | null>(null);
+    const [confirmDelete, setConfirmDelete] = useState<{ open: boolean; id: string | null; title: string }>({
+        open: false, id: null, title: '',
+    });
 
     // Persist plans to localStorage whenever they change
     useEffect(() => { savePlans(plans); }, [plans]);
@@ -69,9 +73,14 @@ export const ReadingPlansPage: React.FC = () => {
 
     const handleContinue = (_plan: PlanData) => navigate('/reader/1/1');
     const handleDelete = (id: string) => {
-        if (confirm('Tem certeza que deseja excluir este plano?')) {
-            setPlans(ps => ps.filter(p => p.id !== id));
-        }
+        const plan = plans.find(p => p.id === id);
+        if (!plan) return;
+        setConfirmDelete({ open: true, id, title: plan.title });
+    };
+    const handleConfirmDelete = () => {
+        if (!confirmDelete.id) return;
+        setPlans(ps => ps.filter(p => p.id !== confirmDelete.id));
+        setConfirmDelete({ open: false, id: null, title: '' });
     };
 
     const filtered = plans.filter(p => {
@@ -91,7 +100,7 @@ export const ReadingPlansPage: React.FC = () => {
                     <p className="text-lg text-muted-foreground">Cresça em fé com leituras guiadas e devocionais diários.</p>
                 </div>
                 <Button onClick={() => setShowForm(!showForm)} className="rounded-xl gap-2 h-12 shrink-0">
-                    {showForm ? <><X className="h-4 w-4" /> Cancelar</> : <><Plus className="h-4 w-4" /> Novo Plano</>}
+                    {showForm ? <><X className="h-4 w-4" /> Fechar</> : <><Plus className="h-4 w-4" /> Novo Plano</>}
                 </Button>
             </header>
 
@@ -137,28 +146,64 @@ export const ReadingPlansPage: React.FC = () => {
                 </blockquote>
             </div>
 
-            {/* New plan form */}
             {showForm && (
                 <div className="bg-card border-2 border-primary/20 rounded-2xl p-6 space-y-4 shadow-lg">
                     <h3 className="font-bold text-lg">✨ Criar Plano Personalizado</h3>
                     <div className="space-y-4">
                         <div className="space-y-1">
-                            <label className="text-sm font-bold">Nome do Plano *</label>
-                            <Input value={newTitle} onChange={e => setNewTitle(e.target.value)}
-                                placeholder="Ex: Evangelho de João em 21 dias" className="h-12 rounded-xl" autoFocus />
+                            <label htmlFor="plan-title" className="text-sm font-bold">Nome do Plano *</label>
+                            <Input
+                                id="plan-title"
+                                value={newTitle}
+                                onChange={e => setNewTitle(e.target.value)}
+                                placeholder="Ex: Evangelho de João em 21 dias"
+                                className="h-12 rounded-xl"
+                                autoFocus
+                            />
                         </div>
                         <div className="space-y-1">
-                            <label className="text-sm font-bold">Descrição</label>
-                            <Input value={newDesc} onChange={e => setNewDesc(e.target.value)}
-                                placeholder="Descreva brevemente o objetivo deste plano" className="h-12 rounded-xl" />
+                            <label htmlFor="plan-desc" className="text-sm font-bold">Descrição</label>
+                            <Input
+                                id="plan-desc"
+                                value={newDesc}
+                                onChange={e => setNewDesc(e.target.value)}
+                                placeholder="Descreva brevemente o objetivo deste plano"
+                                className="h-12 rounded-xl"
+                            />
                         </div>
                         <div className="flex gap-4 items-end">
-                            <div className="space-y-1 w-32">
-                                <label className="text-sm font-bold">Duração (dias)</label>
-                                <Input type="number" min="1" max="365" value={newDays} onChange={e => setNewDays(e.target.value)} className="h-12 rounded-xl" />
+                            <div className="space-y-1 w-36">
+                                <label htmlFor="plan-days" className="text-sm font-bold">Duração (dias)</label>
+                                <Input
+                                    id="plan-days"
+                                    type="number"
+                                    min="1"
+                                    max="365"
+                                    value={newDays}
+                                    onChange={e => setNewDays(e.target.value)}
+                                    className="h-12 rounded-xl"
+                                />
                             </div>
-                            <Button onClick={addPlan} disabled={!newTitle.trim()} className="h-12 rounded-xl px-8 flex-1 gap-2 text-base">
-                                <Plus className="h-5 w-5" /> Criar Plano
+                        </div>
+                        <div className="flex gap-3 pt-1">
+                            <Button
+                                onClick={addPlan}
+                                disabled={!newTitle.trim()}
+                                className="h-12 rounded-xl px-8 gap-2 text-base"
+                            >
+                                <Plus className="h-5 w-5" /> Salvar Plano
+                            </Button>
+                            <Button
+                                variant="outline"
+                                onClick={() => {
+                                    setNewTitle('');
+                                    setNewDesc('');
+                                    setNewDays('30');
+                                    setShowForm(false);
+                                }}
+                                className="h-12 rounded-xl px-6 gap-2"
+                            >
+                                <X className="h-4 w-4" /> Cancelar
                             </Button>
                         </div>
                     </div>
@@ -197,6 +242,17 @@ export const ReadingPlansPage: React.FC = () => {
                     </Button>
                 </div>
             )}
+
+            {/* Dialog de confirmação de exclusão de plano */}
+            <ConfirmDialog
+                open={confirmDelete.open}
+                title="Excluir Plano de Leitura"
+                description="Tem certeza que deseja excluir este plano? Todo o progresso será perdido."
+                itemName={confirmDelete.title}
+                confirmLabel="Excluir Plano"
+                onConfirm={handleConfirmDelete}
+                onCancel={() => setConfirmDelete(prev => ({ ...prev, open: false }))}
+            />
         </div>
     );
 };

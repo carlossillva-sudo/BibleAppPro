@@ -11,7 +11,7 @@ interface ChapterNavProps {
 
 export const ChapterNav: React.FC<ChapterNavProps> = ({ onPrev, onNext, hasPrev, hasNext }) => {
     return (
-        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-background/80 backdrop-blur-md border shadow-2xl px-6 py-3 rounded-full z-50">
+        <div className="flex items-center justify-center gap-4 bg-background/80 border px-6 py-4 rounded-full w-fit mx-auto my-8">
             <Button
                 variant="ghost"
                 size="sm"

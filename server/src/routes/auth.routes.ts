@@ -1,9 +1,22 @@
 import { Router } from 'express';
-import { AuthService } from '../services/auth.service.js';
+import { z } from 'zod';
+import { AuthService } from '../services/auth.service';
+import { validateBody } from '../middleware/validation.middleware';
 
 const router = Router();
 
-router.post('/register', async (req, res) => {
+const registerSchema = z.object({
+    email: z.string().email(),
+    password: z.string().min(6),
+    name: z.string().min(1)
+});
+
+const loginSchema = z.object({
+    email: z.string().email(),
+    password: z.string().min(1)
+});
+
+router.post('/register', validateBody(registerSchema), async (req, res) => {
     try {
         const user = await AuthService.register(req.body);
         res.status(201).json(user);
@@ -12,7 +25,7 @@ router.post('/register', async (req, res) => {
     }
 });
 
-router.post('/login', async (req, res) => {
+router.post('/login', validateBody(loginSchema), async (req, res) => {
     try {
         const result = await AuthService.login(req.body);
         res.json(result);

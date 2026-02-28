@@ -9,7 +9,7 @@ export const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }
         <div className="flex h-screen overflow-hidden bg-background text-foreground">
             <Sidebar />
             <div className="flex-1 flex flex-col overflow-hidden">
-                <header className="h-14 border-b bg-card/80 backdrop-blur-sm flex items-center justify-end px-6 shrink-0">
+                <header className="h-14 border-b border-foreground/5 bg-card/50 backdrop-blur-md flex items-center justify-end px-6 shrink-0">
                     <div className="flex items-center gap-4">
                         <NotificationBell />
                         <div className="flex items-center gap-2">

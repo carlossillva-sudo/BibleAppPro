@@ -1,257 +1,341 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
+import { motion, AnimatePresence, useScroll, useSpring } from 'framer-motion';
 import api from '../services/api';
 import { Button } from '../components/ui/Button';
-import { ChevronLeft, ChevronRight, Heart, Copy, Highlighter, Check, Share2, Maximize2, Minimize2, BookOpen } from 'lucide-react';
+import { Heart, Copy, Highlighter, Maximize2, Minimize2, Sparkles, BookCopy as BookCopyIcon, Bookmark, BookmarkCheck, StickyNote, X, Check, Settings2 } from 'lucide-react';
 import { usePreferencesStore } from '../store/preferencesStore';
 import { cn } from '../utils/cn';
+import { VersionSelector } from '../components/bible/VersionSelector';
+import { ComparePanel } from '../components/bible/ComparePanel';
+import { useHistoryStore } from '../store/historyStore';
+import { useNotesStore } from '../store/notesStore';
+import { dictionaryData } from '../data/dictionaryData';
+import { bookIntroductions } from '../data/bookIntroductions';
+import { Badge } from '../components/ui/Badge';
 
-interface Verse { number: string; text: string; }
+interface Verse { number: string; text?: string; content?: string; }
 interface BookInfo { number: string; name: string; chaptersCount: number; }
+interface ChapterData {
+    bookId: string;
+    bookName: string;
+    chapterId: string;
+    verses: Verse[];
+}
 
 export const ReaderPage: React.FC = () => {
     const { bookId = '1', chapterId = '1' } = useParams();
     const navigate = useNavigate();
     const scrollRef = useRef<HTMLDivElement>(null);
+    const observerTarget = useRef<HTMLDivElement>(null);
     const {
-        fontSize, serifFont, readingWidth, lineHeight,
-        showVerseNumbers, focusMode, setFocusMode, setLastRead
+        fontSize, fontFamily, readingWidth, lineHeight,
+        showVerseNumbers, focusMode, setFocusMode, setLastRead,
+        bibleVersion, verseSpacing, boldVerses
     } = usePreferencesStore();
 
-    const [selectedVerse, setSelectedVerse] = useState<string | null>(null);
+    const [selectedVerse, setSelectedVerse] = useState<{ chapter: string; number: string } | null>(null);
+    const [isCompareOpen, setIsCompareOpen] = useState(false);
+    const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
+    const [noteContent, setNoteContent] = useState('');
+    const [dictionaryWord, setDictionaryWord] = useState<{ word: string; definition: string; category?: string } | null>(null);
+    const [copiedVerse, setCopiedVerse] = useState<string | null>(null);
+
     const [highlighted, setHighlighted] = useState<Set<string>>(() => {
         try { return new Set(JSON.parse(localStorage.getItem('highlighted-verses') || '[]')); } catch { return new Set(); }
     });
     const [favorited, setFavorited] = useState<Set<string>>(() => {
         try { return new Set(JSON.parse(localStorage.getItem('favorited-verses') || '[]')); } catch { return new Set(); }
     });
-    const [copiedVerse, setCopiedVerse] = useState<string | null>(null);
 
-    const { data: books } = useQuery<BookInfo[]>({ queryKey: ['reader-books'], queryFn: async () => (await api.get('/bible/livros')).data });
-    const { data: verses, isLoading, error } = useQuery<Verse[]>({
-        queryKey: ['verses', bookId, chapterId],
-        queryFn: async () => (await api.get(`/bible/livros/${bookId}/capitulos/${chapterId}/versiculos`)).data,
+    const { bookmarks, addBookmark, removeBookmark, addHistory } = useHistoryStore();
+    const { addNote, getNote } = useNotesStore();
+
+    const { data: books } = useQuery<BookInfo[]>({
+        queryKey: ['reader-books', bibleVersion],
+        queryFn: async () => (await api.get('/bible/livros', { params: { v: bibleVersion } })).data
     });
 
     const currentBook = books?.find(b => b.number === bookId);
-    const chNum = parseInt(chapterId);
-    const hasPrev = chNum > 1;
-    const hasNext = currentBook ? chNum < currentBook.chaptersCount : false;
+
+    const {
+        data: infiniteData,
+        fetchNextPage,
+        hasNextPage,
+        isFetchingNextPage
+    } = useInfiniteQuery<ChapterData>({
+        queryKey: ['verses-infinite', bookId, bibleVersion, chapterId],
+        initialPageParam: chapterId,
+        queryFn: async ({ pageParam }) => {
+            const chId = pageParam as string;
+            const res = await api.get(`/bible/livros/${bookId}/capitulos/${chId}/versiculos`, { params: { v: bibleVersion } });
+            return {
+                bookId,
+                bookName: currentBook?.name || '',
+                chapterId: chId,
+                verses: res.data
+            };
+        },
+        getNextPageParam: (lastPage) => {
+            if (!currentBook) return undefined;
+            const nextCh = parseInt(lastPage.chapterId) + 1;
+            return nextCh <= currentBook.chaptersCount ? nextCh.toString() : undefined;
+        },
+        enabled: !!currentBook
+    });
+
+    const loadedChapters = infiniteData?.pages || [];
 
     useEffect(() => {
-        if (currentBook) setLastRead(bookId, currentBook.name, chapterId);
-    }, [bookId, chapterId, currentBook, setLastRead]);
+        const observer = new IntersectionObserver(
+            entries => { if (entries[0].isIntersecting && hasNextPage) fetchNextPage(); },
+            { threshold: 0.1 }
+        );
+        if (observerTarget.current) observer.observe(observerTarget.current);
+        return () => observer.disconnect();
+    }, [fetchNextPage, hasNextPage]);
 
     useEffect(() => {
-        scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-        setSelectedVerse(null);
-    }, [bookId, chapterId]);
+        const observer = new IntersectionObserver(
+            entries => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        const ch = entry.target.getAttribute('data-chapter');
+                        if (ch && ch !== chapterId) {
+                            window.history.replaceState(null, '', `/reader/${bookId}/${ch}`);
+                            if (currentBook) setLastRead(bookId, currentBook.name, ch);
+                        }
+                    }
+                });
+            },
+            { threshold: 0.6 }
+        );
+        const targets = document.querySelectorAll('.chapter-section');
+        targets.forEach(t => observer.observe(t));
+        return () => observer.disconnect();
+    }, [loadedChapters, bookId, chapterId, currentBook, setLastRead]);
+
+    useEffect(() => {
+        if (currentBook) {
+            setLastRead(bookId, currentBook.name, chapterId);
+            addHistory({ bookId, bookName: currentBook.name, chapterId });
+        }
+    }, [bookId, chapterId, currentBook, setLastRead, addHistory]);
 
     useEffect(() => { localStorage.setItem('highlighted-verses', JSON.stringify([...highlighted])); }, [highlighted]);
     useEffect(() => { localStorage.setItem('favorited-verses', JSON.stringify([...favorited])); }, [favorited]);
 
-    // Hide sidebar in focus mode
-    useEffect(() => {
-        const sidebar = document.querySelector('aside');
-        const hamburger = document.querySelector('button.md\\:hidden.fixed');
-        if (focusMode) {
-            sidebar?.classList.add('!hidden');
-            hamburger?.classList.add('!hidden');
-        } else {
-            sidebar?.classList.remove('!hidden');
-            hamburger?.classList.remove('!hidden');
-        }
-        return () => {
-            sidebar?.classList.remove('!hidden');
-            hamburger?.classList.remove('!hidden');
-        };
-    }, [focusMode]);
-
-    const goChapter = (dir: 'prev' | 'next') => {
-        const n = dir === 'next' ? chNum + 1 : chNum - 1;
-        if (n >= 1) navigate(`/reader/${bookId}/${n}`);
-    };
-
-    const makeKey = (num: string) => `${bookId}:${chapterId}:${num}`;
-
-    const toggleHighlight = (num: string) => {
-        const key = makeKey(num);
+    const makeKey = (ch: string, num: string) => `${bookId}:${ch}:${num}`;
+    const toggleHighlight = (ch: string, num: string) => {
+        const key = makeKey(ch, num);
         setHighlighted(prev => { const s = new Set(prev); s.has(key) ? s.delete(key) : s.add(key); return s; });
     };
-
-    const toggleFavorite = (num: string) => {
-        const key = makeKey(num);
+    const toggleFavorite = (ch: string, num: string) => {
+        const key = makeKey(ch, num);
         setFavorited(prev => { const s = new Set(prev); s.has(key) ? s.delete(key) : s.add(key); return s; });
     };
 
-    const copyVerse = (v: Verse) => {
-        const text = `"${v.text}" — ${currentBook?.name} ${chapterId}:${v.number}`;
-        navigator.clipboard.writeText(text);
+    const copyVerse = (ch: string, v: Verse) => {
+        const textToCopy = `"${v.text || v.content}" — ${currentBook?.name} ${ch}:${v.number}`;
+        navigator.clipboard.writeText(textToCopy);
         setCopiedVerse(v.number);
         setTimeout(() => setCopiedVerse(null), 2000);
     };
 
-    const shareVerse = (v: Verse) => {
-        const text = `"${v.text}" — ${currentBook?.name} ${chapterId}:${v.number}`;
-        if (navigator.share) navigator.share({ text });
-        else { navigator.clipboard.writeText(text); setCopiedVerse(v.number); setTimeout(() => setCopiedVerse(null), 2000); }
+    const toggleBookmark = (ch: string, vNum: string) => {
+        const isBookmarked = bookmarks.some(b => b.bookId === bookId && b.chapterId === ch && b.verseNumber === vNum);
+        if (isBookmarked) removeBookmark(bookId, ch, vNum);
+        else addBookmark({ bookId, bookName: currentBook?.name || '', chapterId: ch, verseNumber: vNum });
     };
 
-    const widthClass = focusMode
-        ? 'max-w-xl'
-        : readingWidth === 'narrow' ? 'max-w-lg' : readingWidth === 'wide' ? 'max-w-4xl' : 'max-w-2xl';
+    const handleOpenNote = (ch: string, vNum: string) => {
+        const existing = getNote(bookId, ch, vNum);
+        setNoteContent(existing?.content || '');
+        setSelectedVerse({ chapter: ch, number: vNum });
+        setIsNoteModalOpen(true);
+    };
 
-    const chapterNumbers = currentBook ? Array.from({ length: currentBook.chaptersCount }, (_, i) => i + 1) : [];
+    const handleSaveNote = () => {
+        if (selectedVerse) {
+            addNote({ bookId, chapterId: selectedVerse.chapter, verseNumber: selectedVerse.number, content: noteContent });
+            setIsNoteModalOpen(false);
+            setNoteContent('');
+        }
+    };
 
+    const handleWordClick = (text: string) => {
+        const found = dictionaryData.find(entry => text.toLowerCase().includes(entry.word.toLowerCase()));
+        if (found) setDictionaryWord(found);
+    };
+
+    const widthClass = focusMode ? 'max-w-xl' : readingWidth === 'narrow' ? 'max-w-lg' : readingWidth === 'wide' ? 'max-w-4xl' : 'max-w-2xl';
     const effectiveFontSize = focusMode ? Math.min(fontSize + 2, 32) : fontSize;
 
     return (
-        <div className="flex flex-col h-full focus-transition">
-            {/* Sticky header */}
-            <div className={cn(
-                "sticky top-0 z-20 backdrop-blur-md border-b px-4 md:px-6 py-2.5 flex items-center justify-between shrink-0 focus-transition",
-                focusMode ? 'bg-background/90' : 'bg-card/95'
-            )}>
-                <div className="flex items-center gap-3 ml-10 md:ml-0">
-                    {focusMode && (
-                        <BookOpen className="h-5 w-5 text-primary mr-1" />
-                    )}
-                    <select value={bookId} onChange={e => navigate(`/reader/${e.target.value}/1`)}
-                        className="bg-transparent font-bold text-base outline-none cursor-pointer hover:text-primary transition-colors max-w-[160px] truncate">
-                        {books?.map(b => <option key={b.number} value={b.number}>{b.name}</option>)}
-                    </select>
-                    <div className="h-5 w-px bg-border" />
-                    <select value={chapterId} onChange={e => navigate(`/reader/${bookId}/${e.target.value}`)}
-                        className="bg-transparent font-medium text-sm outline-none cursor-pointer hover:text-primary transition-colors">
-                        {chapterNumbers.map(n => <option key={n} value={n}>Cap. {n}</option>)}
-                    </select>
+        <div className="flex flex-col h-full bg-background selection:bg-primary/20 overflow-hidden">
+            <div className="fixed top-0 left-0 right-0 h-1 z-50">
+                <motion.div className="h-full bg-primary origin-left" style={{ scaleX: useSpring(useScroll({ container: scrollRef }).scrollYProgress, { stiffness: 100, damping: 30 }) }} />
+            </div>
+
+            <header className={cn("sticky top-0 z-40 px-4 md:px-8 py-3 flex items-center justify-between glass-panel border-x-0 rounded-none shadow-md transition-all duration-700", focusMode && "opacity-0 -translate-y-full")}>
+                <div className="flex items-center gap-4">
+                    <div className="flex flex-col">
+                        <div className="flex items-center gap-2">
+                            <select value={bookId} onChange={e => navigate(`/reader/${e.target.value}/1`)} className="bg-transparent font-black tracking-tighter outline-none cursor-pointer">
+                                {books?.map(b => <option key={b.number} value={b.number}>{b.name}</option>)}
+                            </select>
+                            <select value={chapterId} onChange={e => navigate(`/reader/${bookId}/${e.target.value}`)} className="bg-transparent font-black text-primary/80 outline-none cursor-pointer">
+                                {Array.from({ length: currentBook?.chaptersCount || 0 }, (_, i) => i + 1).map(n => <option key={n} value={n}>{n}</option>)}
+                            </select>
+                        </div>
+                    </div>
                 </div>
-                <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="icon"
-                        onClick={() => setFocusMode(!focusMode)}
-                        className={cn("rounded-xl h-9 w-9", focusMode && "text-primary bg-primary/10")}
-                        title={focusMode ? 'Sair do Modo Foco' : 'Modo Foco'}>
+
+                <div className="flex items-center gap-2">
+                    <Button variant="ghost" size="icon" onClick={() => setIsCompareOpen(!isCompareOpen)} className={cn("rounded-xl", isCompareOpen && "bg-primary/10")} title="Comparar Versões">
+                        <BookCopyIcon className="h-4 w-4" />
+                    </Button>
+                    <VersionSelector />
+                    <Button variant="ghost" size="icon" onClick={() => navigate('/personalization')} className="rounded-xl" title="Personalização">
+                        <Settings2 className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => setFocusMode(!focusMode)} className="rounded-xl" title="Modo Foco">
                         {focusMode ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
                     </Button>
-                    <div className="h-5 w-px bg-border mx-1" />
-                    <Button variant="ghost" size="icon" disabled={!hasPrev} onClick={() => goChapter('prev')} className="rounded-xl h-9 w-9">
-                        <ChevronLeft className="h-5 w-5" />
-                    </Button>
-                    <span className="text-xs font-bold text-muted-foreground min-w-[3ch] text-center">{chapterId}</span>
-                    <Button variant="ghost" size="icon" disabled={!hasNext} onClick={() => goChapter('next')} className="rounded-xl h-9 w-9">
-                        <ChevronRight className="h-5 w-5" />
-                    </Button>
                 </div>
-            </div>
+            </header>
 
-            {/* Focus mode banner */}
-            {focusMode && (
-                <div className="bg-primary/5 border-b border-primary/10 py-1.5 text-center text-xs font-bold text-primary tracking-wider uppercase animate-in fade-in duration-300">
-                    ✦ Modo Foco Ativado ✦
-                </div>
-            )}
-
-            {/* Reading area */}
-            <div ref={scrollRef} className="flex-1 overflow-y-auto bg-background focus-transition">
-                <div className={cn('mx-auto px-6 md:px-8 py-10 focus-transition', widthClass)}>
-                    <div className="text-center mb-10 space-y-2">
-                        <p className="text-xs font-black text-primary uppercase tracking-[0.25em]">{currentBook?.name}</p>
-                        <h2 className={cn("font-black text-foreground/20", focusMode ? "text-6xl" : "text-5xl")}>
-                            {chapterId}
-                        </h2>
-                    </div>
-
-                    {error && (
-                        <div className="p-6 bg-destructive/10 border border-destructive/20 rounded-2xl text-center">
-                            <p className="font-bold text-destructive">Erro ao carregar versículos</p>
-                            <p className="text-sm text-muted-foreground mt-1">Verifique se o servidor backend está rodando.</p>
-                        </div>
-                    )}
-
-                    {isLoading && (
-                        <div className="space-y-4 animate-pulse">
-                            {[...Array(12)].map((_, i) => <div key={i} className="h-5 bg-muted rounded" style={{ width: `${60 + Math.random() * 40}%` }} />)}
-                        </div>
-                    )}
-
-                    <div className="space-y-0.5">
-                        {verses?.map(verse => {
-                            const key = makeKey(verse.number);
-                            const isSelected = selectedVerse === verse.number;
-                            const isHL = highlighted.has(key);
-                            const isFav = favorited.has(key);
-
-                            return (
-                                <div key={verse.number} id={`v-${verse.number}`}>
-                                    <p
-                                        onClick={() => setSelectedVerse(isSelected ? null : verse.number)}
-                                        className={cn(
-                                            'cursor-pointer rounded-lg px-3 py-1 transition-all select-text',
-                                            serifFont ? 'font-serif' : '',
-                                            isHL ? 'bg-yellow-200/60 dark:bg-yellow-800/30 hover:bg-yellow-200/80' : 'hover:bg-primary/5',
-                                            isSelected ? 'bg-primary/10 ring-2 ring-primary/20 shadow-sm' : ''
-                                        )}
-                                        style={{ fontSize: `${effectiveFontSize}px`, lineHeight: lineHeight }}
-                                    >
-                                        {showVerseNumbers && (
-                                            <sup className="text-primary font-black text-[0.6em] mr-2 select-none align-top">{verse.number}</sup>
-                                        )}
-                                        {verse.text}
-                                    </p>
-
-                                    {/* Floating action toolbar */}
-                                    {isSelected && (
-                                        <div className="flex items-center gap-1.5 py-2 pl-3 animate-in fade-in slide-in-from-top-1 duration-150">
-                                            <button onClick={() => toggleFavorite(verse.number)}
-                                                className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
-                                                    isFav ? "bg-pink-500/10 text-pink-500" : "bg-muted hover:bg-muted/80")}>
-                                                <Heart className={cn("h-3.5 w-3.5", isFav && "fill-pink-500")} />
-                                                {isFav ? 'Salvo' : 'Favoritar'}
-                                            </button>
-                                            <button onClick={() => toggleHighlight(verse.number)}
-                                                className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
-                                                    isHL ? "bg-yellow-500/10 text-yellow-600" : "bg-muted hover:bg-muted/80")}>
-                                                <Highlighter className="h-3.5 w-3.5" />
-                                                {isHL ? 'Remover' : 'Destacar'}
-                                            </button>
-                                            <button onClick={() => copyVerse(verse)}
-                                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-muted hover:bg-muted/80 transition-all">
-                                                {copiedVerse === verse.number ? <><Check className="h-3.5 w-3.5 text-green-500" /> Copiado!</> : <><Copy className="h-3.5 w-3.5" /> Copiar</>}
-                                            </button>
-                                            <button onClick={() => shareVerse(verse)}
-                                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-muted hover:bg-muted/80 transition-all">
-                                                <Share2 className="h-3.5 w-3.5" /> Enviar
-                                            </button>
-                                            {!focusMode && (
-                                                <button onClick={() => setFocusMode(true)}
-                                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-primary/10 text-primary hover:bg-primary/20 transition-all">
-                                                    <Maximize2 className="h-3.5 w-3.5" /> Foco
-                                                </button>
-                                            )}
+            <main ref={scrollRef} className="flex-1 overflow-y-auto custom-scrollbar">
+                <div className={cn("mx-auto px-6 py-12 space-y-24", widthClass)}>
+                    {loadedChapters.map((page, pageIdx) => {
+                        const intro = bookIntroductions[page.bookId];
+                        return (
+                            <section key={`${page.bookId}-${page.chapterId}`} data-chapter={page.chapterId} className="chapter-section space-y-12">
+                                {pageIdx === 0 && page.chapterId === '1' && intro && (
+                                    <div className="p-8 premium-card border-primary/20 bg-primary/5 rounded-3xl space-y-4">
+                                        <h2 className="text-3xl font-black">Introdução a {intro.title}</h2>
+                                        <div className="grid md:grid-cols-2 gap-4 text-sm">
+                                            <div><p className="opacity-60 uppercase text-[10px] font-black">Autor</p><p className="font-bold">{intro.author}</p></div>
+                                            <div><p className="opacity-60 uppercase text-[10px] font-black">Tema</p><p className="font-bold">{intro.theme}</p></div>
                                         </div>
-                                    )}
-                                </div>
-                            );
-                        })}
-                    </div>
+                                        <p className="text-muted-foreground leading-relaxed">{intro.context}</p>
+                                    </div>
+                                )}
 
-                    {verses && verses.length > 0 && (
-                        <div className="flex items-center justify-between pt-16 pb-10 border-t mt-16">
-                            <Button variant="outline" disabled={!hasPrev} onClick={() => goChapter('prev')} className="gap-2 rounded-xl h-12">
-                                <ChevronLeft className="h-4 w-4" /> Anterior
-                            </Button>
-                            <div className="text-center">
-                                <p className="text-xs text-muted-foreground">{currentBook?.name}</p>
-                                <p className="font-bold">Capítulo {chapterId}</p>
-                            </div>
-                            <Button variant="outline" disabled={!hasNext} onClick={() => goChapter('next')} className="gap-2 rounded-xl h-12">
-                                Próximo <ChevronRight className="h-4 w-4" />
-                            </Button>
-                        </div>
-                    )}
+                                <motion.div
+                                    initial={{ opacity: 0, x: -20 }}
+                                    whileInView={{ opacity: 1, x: 0 }}
+                                    viewport={{ once: true, margin: "-100px" }}
+                                    transition={{ duration: 0.5, ease: "easeOut" }}
+                                    className="flex flex-col gap-2 mt-16 mb-8"
+                                >
+                                    <div className="flex items-baseline gap-4">
+                                        <span className="text-6xl md:text-8xl font-black opacity-10 tracking-tighter shrink-0 select-none">
+                                            {page.chapterId}
+                                        </span>
+                                        <div className="flex flex-col">
+                                            <span className="text-2xl md:text-3xl font-bold">{currentBook?.name}</span>
+                                            <span className="text-xs md:text-sm font-semibold text-primary uppercase tracking-widest">
+                                                Capítulo {page.chapterId}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="h-px w-full bg-gradient-to-r from-border via-border/50 to-transparent mt-4" />
+                                </motion.div>
+
+                                <div className="space-y-4">
+                                    {page.verses.map(verse => {
+                                        const key = makeKey(page.chapterId, verse.number);
+                                        const isSelected = selectedVerse?.chapter === page.chapterId && selectedVerse?.number === verse.number;
+                                        const note = getNote(bookId, page.chapterId, verse.number);
+                                        const spacingClass = verseSpacing === 'compact' ? 'py-1' : verseSpacing === 'relaxed' ? 'py-5' : 'py-3';
+                                        return (
+                                            <div key={verse.number} className="relative group">
+                                                <p
+                                                    onClick={() => { setSelectedVerse(isSelected ? null : { chapter: page.chapterId, number: verse.number }); handleWordClick(verse.text || verse.content || ''); }}
+                                                    className={cn(
+                                                        "reader-text px-4 rounded-2xl transition-all cursor-pointer",
+                                                        spacingClass,
+                                                        boldVerses ? "font-bold" : "",
+                                                        highlighted.has(key) && "bg-yellow-500/10",
+                                                        isSelected && "bg-primary/5 ring-1 ring-primary/20 scale-[1.01]"
+                                                    )}
+                                                    style={{ fontSize: `${effectiveFontSize}px`, lineHeight, fontFamily: fontFamily === 'System' ? 'inherit' : fontFamily }}
+                                                >
+                                                    {showVerseNumbers && <span className="text-[0.6em] font-black opacity-30 mr-3 align-top">{verse.number}</span>}
+                                                    {verse.text || verse.content}
+                                                    {note && <StickyNote className="inline h-3 w-3 ml-2 text-primary" />}
+                                                </p>
+                                                <AnimatePresence>
+                                                    {isSelected && (
+                                                        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="absolute -top-12 left-0 flex gap-1 p-1 glass-panel rounded-xl shadow-xl z-10">
+                                                            <button onClick={() => toggleBookmark(page.chapterId, verse.number)} className="p-2 hover:bg-primary/10 rounded-lg">
+                                                                {bookmarks.some(b => b.bookId === bookId && b.chapterId === page.chapterId && b.verseNumber === verse.number) ? <BookmarkCheck className="h-4 w-4 text-primary" /> : <Bookmark className="h-4 w-4" />}
+                                                            </button>
+                                                            <button onClick={() => toggleFavorite(page.chapterId, verse.number)} className="p-2 hover:bg-pink-500/10 rounded-lg">
+                                                                <Heart className={cn("h-4 w-4", favorited.has(key) && "fill-pink-500 text-pink-500")} />
+                                                            </button>
+                                                            <button onClick={() => toggleHighlight(page.chapterId, verse.number)} className="p-2 hover:bg-yellow-500/10 rounded-lg">
+                                                                <Highlighter className={cn("h-4 w-4", highlighted.has(key) && "text-yellow-600")} />
+                                                            </button>
+                                                            <button onClick={() => handleOpenNote(page.chapterId, verse.number)} className="p-2 hover:bg-primary/10 rounded-lg"><StickyNote className="h-4 w-4" /></button>
+                                                            <button onClick={() => copyVerse(page.chapterId, verse)} className="p-2 hover:bg-primary/10 rounded-lg relative">
+                                                                {copiedVerse === verse.number ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                                                                {copiedVerse === verse.number && (
+                                                                    <motion.span initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="absolute -bottom-8 left-1/2 -translate-x-1/2 text-[10px] font-bold text-green-500 bg-background px-1 rounded shadow-sm">
+                                                                        Copiado!
+                                                                    </motion.span>
+                                                                )}
+                                                            </button>
+                                                        </motion.div>
+                                                    )}
+                                                </AnimatePresence>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </section>
+                        );
+                    })}
+                    <div ref={observerTarget} className="h-20 flex items-center justify-center opacity-30">
+                        {isFetchingNextPage ? <Sparkles className="animate-spin" /> : hasNextPage ? 'Carregando...' : 'Fim do Livro'}
+                    </div>
                 </div>
-            </div>
+            </main>
+
+            {isCompareOpen && <ComparePanel bookId={bookId} chapterId={chapterId} currentVersion={bibleVersion} onClose={() => setIsCompareOpen(false)} />}
+
+
+
+            <AnimatePresence>
+                {isNoteModalOpen && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                        <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={() => setIsNoteModalOpen(false)} />
+                        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-card w-full max-w-lg rounded-3xl p-8 border border-primary/10 relative z-10 shadow-2xl">
+                            <h3 className="text-xl font-black mb-4">Anotação</h3>
+                            <textarea value={noteContent} onChange={e => setNoteContent(e.target.value)} className="w-full h-48 bg-foreground/5 rounded-2xl p-4 outline-none resize-none mb-6" />
+                            <div className="flex justify-end gap-2">
+                                <Button variant="ghost" onClick={() => setIsNoteModalOpen(false)}>Cancelar</Button>
+                                <Button onClick={handleSaveNote}>Salvar</Button>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+                {dictionaryWord && (
+                    <motion.div initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 50, opacity: 0 }} className="fixed bottom-8 left-1/2 -translate-x-1/2 w-full max-w-sm p-6 glass-panel border-primary/20 shadow-2xl z-50">
+                        <div className="flex justify-between items-center mb-2">
+                            <h4 className="font-black">{dictionaryWord.word}</h4>
+                            <Badge variant="outline">{dictionaryWord.category}</Badge>
+                            <button onClick={() => setDictionaryWord(null)}><X className="h-4 w-4" /></button>
+                        </div>
+                        <p className="text-sm opacity-80 italic">{dictionaryWord.definition}</p>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };
