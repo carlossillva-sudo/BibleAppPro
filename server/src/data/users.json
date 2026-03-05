@@ -1,9 +1,0 @@
-[
-  {
-    "id": "admin-id",
-    "email": "admin@bibleapp.com",
-    "password": "$2a$10$QMg7iO29jmWIAekgaz6dke7g9FnkgWbKwp8t5NTPzFKhtFdz5Q6iW",
-    "name": "Administrador",
-    "createdAt": "2026-02-25T18:16:57.355Z"
-  }
-]
