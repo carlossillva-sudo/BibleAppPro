@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Palette, Type, Save, Check, Eye, Sun, Moon, Monitor, LayoutTemplate, Settings2, BookOpen } from 'lucide-react';
 import { Button } from '../components/ui/Button';
+import { PageHeader } from '../components/ui/PageHeader';
 import { usePreferencesStore, THEMES_DATA } from '../store/preferencesStore';
 import type { AppearanceMode, FontFamily, ReadingWidth, VerseSpacing, ReadingMode } from '../store/preferencesStore';
 import { cn } from '../utils/cn';
@@ -54,13 +55,11 @@ export const PersonalizationPage: React.FC = () => {
 
     return (
         <div className="p-4 md:p-8 max-w-4xl mx-auto space-y-12 pb-32 animate-in fade-in duration-500">
-            <header className="space-y-3">
-                <div className="flex items-center gap-2 text-[10px] font-black text-primary uppercase tracking-[0.25em]">
-                    <Settings2 className="h-4 w-4" /> Configurações Globais
-                </div>
-                <h1 className="text-4xl md:text-5xl font-black tracking-tighter">Personalização.</h1>
-                <p className="text-base text-muted-foreground font-medium">Sua experiência de leitura, perfeitamente adaptada a você.</p>
-            </header>
+            <PageHeader
+                title="Personalização."
+                subtitle="Sua experiência de leitura, perfeitamente adaptada a você."
+                icon={<Settings2 className="h-4 w-4" />}
+            />
 
             <div className="grid gap-8">
                 {/* 1. MODO DE APARÊNCIA */}

@@ -4,6 +4,7 @@ import { ChatService } from '../services/chat.service';
 import { AIService } from '../services/ai.service';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { Button } from '../components/ui/Button';
+import { PageHeader } from '../components/ui/PageHeader';
 
 export const ChatPage: React.FC = () => {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -83,10 +84,11 @@ export const ChatPage: React.FC = () => {
 
     return (
         <div className="p-6 md:p-8 max-w-3xl mx-auto flex flex-col h-full">
-            <header className="mb-4">
-                <h1 className="text-3xl font-bold">Chat</h1>
-                <p className="text-sm text-muted-foreground">Converse com outros usuários (beta) ou pergunte ao assistente local.</p>
-            </header>
+            <PageHeader
+                title="Chat"
+                subtitle="Converse com outros usuários (beta) ou pergunte ao assistente local."
+                showBack
+            />
 
             <div className="flex gap-2 mb-4">
                 <button className={`px-4 py-2 rounded-lg ${tab === 'users' ? 'bg-card' : 'bg-muted'}`} onClick={() => setTab('users')}>Usuários</button>

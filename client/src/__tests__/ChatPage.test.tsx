@@ -66,28 +66,36 @@ describe('ChatPage', () => {
         });
     });
 
-    it('should render ChatPage with title', () => {
-        render(<ChatPage />);
+    it('should render ChatPage with title', async () => {
+        await act(async () => {
+            render(<ChatPage />);
+        });
         expect(screen.getByText('Chat')).toBeTruthy();
         expect(screen.getByText(/Converse com outros usuários/)).toBeTruthy();
     });
 
     it('should load and display messages on mount', async () => {
-        render(<ChatPage />);
+        await act(async () => {
+            render(<ChatPage />);
+        });
         await waitFor(() => {
             expect(screen.getByText('Olá!')).toBeTruthy();
             expect(screen.getByText('Oi, como posso ajudar?')).toBeTruthy();
         });
     });
 
-    it('should have two tabs: Usuários and Assistente', () => {
-        render(<ChatPage />);
+    it('should have two tabs: Usuários and Assistente', async () => {
+        await act(async () => {
+            render(<ChatPage />);
+        });
         expect(screen.getByText('Usuários')).toBeTruthy();
         expect(screen.getByText('Assistente')).toBeTruthy();
     });
 
-    it('should switch to users tab by default', () => {
-        render(<ChatPage />);
+    it('should switch to users tab by default', async () => {
+        await act(async () => {
+            render(<ChatPage />);
+        });
         const userInput = screen.getByPlaceholderText('Digite uma mensagem...');
         expect(userInput).toBeTruthy();
     });
@@ -252,11 +260,11 @@ describe('ChatPage', () => {
         if (messageHandler) {
             // Try to add same message twice
             const duplicateMessage = {
-                type: 'message',
+                type: 'message' as const,
                 data: mockMessages[0],
             };
-            messageHandler(duplicateMessage);
-            messageHandler(duplicateMessage);
+            (messageHandler as any)(duplicateMessage);
+            (messageHandler as any)(duplicateMessage);
 
             // Count occurrences - should be only 1
             const elements = screen.queryAllByText('Olá!');

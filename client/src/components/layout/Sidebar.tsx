@@ -42,7 +42,7 @@ const TOOLS: NavItem[] = [
 
 const SYSTEM: NavItem[] = [
     { icon: Crown, label: 'Premium', path: '/premium' },
-    { icon: Bell, label: 'Notificações', path: '/notifications', badge: 'Em breve' },
+    { icon: Bell, label: 'Notificações', path: '/notificacoes' },
     { icon: Palette, label: 'Personalização', path: '/personalization' },
     { icon: Cloud, label: 'Backup e Sincronização', path: '/settings/backup' },
     { icon: Settings, label: 'Configurações', path: '/settings' },
