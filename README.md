@@ -5,9 +5,11 @@ Uma plataforma moderna e completa para leitura, estudo e meditação bíblica. D
 ## 🚀 Tecnologias
 
 ### Monorepo
+
 - **Concurrently**: Gerenciamento simultâneo do Backend e Frontend.
 
 ### Frontend (/client)
+
 - **React 18** (Vite + TypeScript)
 - **Tailwind CSS**: Estilização moderna e responsiva.
 - **shadcn/ui**: Componentes de interface de alta qualidade.
@@ -16,6 +18,7 @@ Uma plataforma moderna e completa para leitura, estudo e meditação bíblica. D
 - **Lucide React**: Biblioteca de ícones.
 
 ### Backend (/server)
+
 - **Node.js** (Express + TypeScript)
 - **fast-xml-parser**: Processamento de alta performance do `PortugueseBible.xml`.
 - **JWT**: Autenticação segura.
@@ -27,23 +30,26 @@ Uma plataforma moderna e completa para leitura, estudo e meditação bíblica. D
 ## 🛠️ Como Executar
 
 ### Pré-requisitos
+
 - Node.js instalado.
 
 ### Passo 1: Instalação
+
 Na raiz do projeto, execute:
+
 ```bash
 npm run install-all
 ```
 
 ### Passo 2: Desenvolvimento
+
 Para rodar o backend e o frontend simultaneamente:
+
 ```bash
 npm run dev
 ```
 
 ### Endereços
-- **Frontend**: http://localhost:5173
-- **Backend API**: http://localhost:3000/api
 
 ---
 
@@ -68,6 +74,7 @@ npm run dev
 ```
 
 ## 🔐 Rotas e Acesso
+
 - `/login`: Acesso à plataforma.
 - `/dashboard`: Visão geral da biblioteca.
 - `/reader/:bookId/:chapterId`: Leitor PRO contínuo.
@@ -75,4 +82,5 @@ npm run dev
 - `/favorites`: Versículos e anotações guardadas.
 
 ---
+
 Desenvolvido com ❤️ por Antigravity (Google DeepMind).
