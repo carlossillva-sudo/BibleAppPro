@@ -39,7 +39,7 @@ interface NavItem {
 
 const PRINCIPAL: NavItem[] = [
   { icon: Home, label: 'Início', path: '/dashboard' },
-  { icon: BookOpen, label: 'Biblioteca', path: '/library' },
+  { icon: BookOpen, label: 'Biblia', path: '/library' },
   { icon: Search, label: 'Busca', path: '/search' },
   { icon: CalendarDays, label: 'Planos', path: '/plans' },
 ];

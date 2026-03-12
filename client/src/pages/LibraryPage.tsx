@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { BookOpen, BookMarked, ChevronRight, Layers } from 'lucide-react';
+import { BookOpen, BookMarked, ChevronRight, Layers, RefreshCw, AlertCircle } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
+import { Button } from '../components/ui/Button';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { usePreferencesStore } from '../store/preferencesStore';
@@ -16,28 +17,70 @@ interface BookInfo {
 export const LibraryPage: React.FC = () => {
   const navigate = useNavigate();
   const { bibleVersion } = usePreferencesStore();
+  const [selectedVersion, setSelectedVersion] = useState(bibleVersion);
 
-  const { data: books, isLoading } = useQuery<BookInfo[]>({
-    queryKey: ['library-books', bibleVersion],
-    queryFn: async () => (await api.get('/bible/livros', { params: { v: bibleVersion } })).data,
+  const { data: versions } = useQuery({
+    queryKey: ['bible-versions'],
+    queryFn: async () => (await api.get('/bible/versoes')).data,
+  });
+
+  const {
+    data: books,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery<BookInfo[]>({
+    queryKey: ['library-books', selectedVersion],
+    queryFn: async () => {
+      const response = await api.get('/bible/livros', { params: { v: selectedVersion } });
+      return response.data;
+    },
+    staleTime: 1000 * 60 * 5,
+    retry: 2,
   });
 
   const livrosAntigo = books?.filter((b) => parseInt(b.number) <= 39) || [];
   const livrosNovo = books?.filter((b) => parseInt(b.number) > 39) || [];
 
   const handleLivroClick = (book: BookInfo) => {
-    navigate(`/reader/${book.number}/1`);
+    navigate(`/reader/${book.number}/1?v=${selectedVersion}`);
+  };
+
+  const handleVersionChange = (version: string) => {
+    setSelectedVersion(version);
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white dark:from-zinc-950 dark:to-zinc-900 pb-20">
       <div className="container max-w-6xl mx-auto px-4 py-6">
         <PageHeader
-          title="Biblioteca"
+          title="Biblia"
           subtitle="Explore todos os livros da Sagrada Escritura"
           icon={<BookOpen className="h-6 w-6 text-blue-600" />}
           showBack={true}
         />
+
+        {/* Version Selector */}
+        <div className="mt-4 mb-6">
+          <label className="text-sm font-bold text-muted-foreground mb-2 block">Versão:</label>
+          <div className="flex flex-wrap gap-2">
+            {versions?.map((v: { id: string; name: string }) => (
+              <button
+                key={v.id}
+                onClick={() => handleVersionChange(v.id)}
+                className={cn(
+                  'px-4 py-2 rounded-xl text-sm font-bold transition-all',
+                  selectedVersion === v.id
+                    ? 'bg-primary text-white shadow-lg'
+                    : 'bg-white dark:bg-zinc-800 border hover:bg-muted'
+                )}
+              >
+                {v.name} ({v.id})
+              </button>
+            ))}
+          </div>
+        </div>
 
         {isLoading ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 mt-6">
@@ -47,6 +90,24 @@ export const LibraryPage: React.FC = () => {
                 className="h-24 bg-slate-200 dark:bg-zinc-800 rounded-2xl animate-pulse"
               />
             ))}
+          </div>
+        ) : isError ? (
+          <div className="text-center py-12">
+            <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+            <h3 className="text-lg font-bold mb-2">Erro ao carregar livros</h3>
+            <p className="text-muted-foreground mb-4">{String(error)}</p>
+            <Button onClick={() => refetch()} className="gap-2">
+              <RefreshCw className="h-4 w-4" /> Tentar novamente
+            </Button>
+          </div>
+        ) : books?.length === 0 ? (
+          <div className="text-center py-12">
+            <BookOpen className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-lg font-bold mb-2">Nenhum livro encontrado</h3>
+            <p className="text-muted-foreground mb-4">Tente selecionar outra versão da Bíblia.</p>
+            <Button onClick={() => refetch()} variant="outline" className="gap-2">
+              <RefreshCw className="h-4 w-4" /> Recarregar
+            </Button>
           </div>
         ) : (
           <div className="space-y-8 mt-6">
@@ -58,7 +119,7 @@ export const LibraryPage: React.FC = () => {
                 <div>
                   <h2 className="text-lg font-bold text-foreground">Antigo Testamento</h2>
                   <p className="text-sm text-muted-foreground">
-                    {livrosAntigo.length} livros • De Gênesis a Malaquias
+                    {livrosAntigo.length} livros - De Gênesis a Malaquias
                   </p>
                 </div>
               </div>
@@ -97,7 +158,7 @@ export const LibraryPage: React.FC = () => {
                 <div>
                   <h2 className="text-lg font-bold text-foreground">Novo Testamento</h2>
                   <p className="text-sm text-muted-foreground">
-                    {livrosNovo.length} livros • De Mateus a Apocalipse
+                    {livrosNovo.length} livros - De Mateus a Apocalipse
                   </p>
                 </div>
               </div>
@@ -132,7 +193,7 @@ export const LibraryPage: React.FC = () => {
 
         <div className="text-center mt-12 pt-6 border-t border-slate-200 dark:border-zinc-800">
           <p className="text-sm text-muted-foreground">
-            © 2026 BibleAppPro • {books?.length || 66} livros bíblicos
+            - 2026 BibleAppPro - {books?.length || 66} livros biblicos
           </p>
         </div>
       </div>
