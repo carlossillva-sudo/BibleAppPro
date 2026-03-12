@@ -24,6 +24,9 @@ import {
   Handshake as HandsPraying,
   Cloud,
   StickyNote,
+  Crown,
+  MessageCircle,
+  PenLine,
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
 
@@ -46,7 +49,11 @@ const DEVOTION: NavItem[] = [
   { icon: HandsPraying, label: 'Orações', path: '/journal' },
   { icon: StickyNote, label: 'Anotações', path: '/notes', badge: 'Novo' },
   { icon: Heart, label: 'Favoritos', path: '/favorites' },
+  { icon: PenLine, label: 'Reflexões', path: '/reflections' },
+  { icon: MessageCircle, label: 'Chat', path: '/chat', badge: 'Beta' },
 ];
+
+const PREMIUM: NavItem[] = [{ icon: Crown, label: 'Premium', path: '/premium' }];
 
 const TOOLS: NavItem[] = [
   { icon: BarChart3, label: 'Estatísticas', path: '/stats' },
@@ -122,7 +129,9 @@ export const Sidebar: React.FC = () => {
   };
 
   const handleNav = (path: string) => {
-    const item = [...PRINCIPAL, ...DEVOTION, ...TOOLS, ...SYSTEM].find((i) => i.path === path);
+    const item = [...PRINCIPAL, ...DEVOTION, ...TOOLS, ...SYSTEM, ...PREMIUM].find(
+      (i) => i.path === path
+    );
     if (item?.badge === 'Em breve') return;
     navigate(path);
     setMobileOpen(false);
@@ -214,6 +223,7 @@ export const Sidebar: React.FC = () => {
         <NavSection title="Principal" items={PRINCIPAL} />
         <NavSection title="Devoção" items={DEVOTION} />
         <NavSection title="Ferramentas" items={TOOLS} />
+        <NavSection title="Premium" items={PREMIUM} />
         <NavSection title="Sistema" items={SYSTEM} />
       </nav>
 

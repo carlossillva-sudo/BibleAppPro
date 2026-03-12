@@ -80,6 +80,22 @@ const NotificacoesScreen = React.lazy(() =>
   import('./screens/NotificacoesScreen').then((m) => ({ default: m.default }))
 );
 
+const ChatPage = React.lazy(() =>
+  import('./pages/ChatPage').then((m) => ({ default: m.ChatPage }))
+);
+
+const ReflectionsPage = React.lazy(() =>
+  import('./pages/ReflectionsPage').then((m) => ({ default: m.ReflectionsPage }))
+);
+
+const PremiumPage = React.lazy(() =>
+  import('./pages/PremiumPage').then((m) => ({ default: m.PremiumPage }))
+);
+
+const Home = React.lazy(() => import('./pages/Home').then((m) => ({ default: m.Home })));
+
+const Studio = React.lazy(() => import('./pages/Studio').then((m) => ({ default: m.Studio })));
+
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   if (!isAuthenticated) {
@@ -260,6 +276,42 @@ export const routes: RouteObject[] = [
     element: (
       <Protected>
         <NotificacoesScreen />
+      </Protected>
+    ),
+  },
+  {
+    path: '/chat',
+    element: (
+      <Protected>
+        <ChatPage />
+      </Protected>
+    ),
+  },
+  {
+    path: '/reflections',
+    element: (
+      <Protected>
+        <ReflectionsPage />
+      </Protected>
+    ),
+  },
+  {
+    path: '/premium',
+    element: <PremiumPage />,
+  },
+  {
+    path: '/home',
+    element: (
+      <Protected>
+        <Home />
+      </Protected>
+    ),
+  },
+  {
+    path: '/studio',
+    element: (
+      <Protected>
+        <Studio />
       </Protected>
     ),
   },
