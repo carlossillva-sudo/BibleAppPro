@@ -28,7 +28,18 @@ export const BIBLE_VERSIONS: BibleVersion[] = [
   { id: 'A21', name: 'Almeida Século 21', filename: 'PortugueseA21Bible.xml' },
   { id: 'NAA', name: 'Nova Almeida Atualizada', filename: 'PortugueseNAABible.xml' },
   { id: 'NBV', name: 'Nova Bíblia Viva', filename: 'PortugueseNBV2007Bible.xml' },
+  { id: 'NVI2023', name: 'Nova Versão Internacional 2023', filename: 'PortugueseNVI2023Bible.xml' },
   { id: 'KJV', name: 'King James Version', filename: 'PortugueseBible.xml' },
+  { id: 'BLT', name: 'Bíblia Livre na Linguagem de Hoje', filename: 'PortugueseBLTBible.xml' },
+  { id: 'BPT09', name: 'Bíblica Pentecostal 2009', filename: 'PortugueseBPT09Bible.xml' },
+  { id: 'CAP', name: 'Contemporary Academic Portuguese', filename: 'PortugueseCAPBible.xml' },
+  { id: 'MZNVI', name: 'MSG - Nova Versão Internacional', filename: 'PortugueseMZNVIBible.xml' },
+  { id: 'OLB', name: 'Olive Tree Literal Bible', filename: 'PortugueseOLBible.xml' },
+  { id: 'TB', name: 'Tradução Brasileira', filename: 'PortugueseTBBible.xml' },
+  { id: 'VFL', name: 'Versão Fiel', filename: 'PortugueseVFLBible.xml' },
+  { id: 'ARA1628', name: 'Almeida 1628', filename: 'PortugueseAlmeida1628Bible.xml' },
+  { id: 'ARA1753', name: 'Almeida 1753', filename: 'PortugueseAlmeida1753Bible.xml' },
+  { id: '1969', name: 'Almeida 1969', filename: 'Portuguese1969Bible.xml' },
 ];
 
 class BibleClientService {
