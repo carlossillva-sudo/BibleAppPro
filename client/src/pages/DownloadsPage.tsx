@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Download,
   Trash2,
@@ -9,9 +9,16 @@ import {
   Wifi,
   WifiOff,
   AlertCircle,
+  Heart,
+  StickyNote,
+  Database,
+  Upload,
+  RefreshCw,
+  History,
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { cn } from '../utils/cn';
+import { offlineService } from '../services/offline.service';
 
 interface BibleVersion {
   id: string;
@@ -37,6 +44,41 @@ export const DownloadsPage: React.FC = () => {
   const [versions, setVersions] = useState<BibleVersion[]>(INITIAL_VERSIONS);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [offlineMode, setOfflineMode] = useState(false);
+  const [offlineData, setOfflineData] = useState<{
+    favorites: number;
+    notes: number;
+    history: number;
+    storageUsed: number;
+    storageQuota: number;
+  }>({ favorites: 0, notes: 0, history: 0, storageUsed: 0, storageQuota: 0 });
+  const [loadingOffline, setLoadingOffline] = useState(false);
+
+  const loadOfflineData = async () => {
+    setLoadingOffline(true);
+    try {
+      const [favorites, notes, history, storage] = await Promise.all([
+        offlineService.getFavorites(),
+        offlineService.getNotes(),
+        offlineService.getReadingHistory(100),
+        offlineService.getStorageUsage(),
+      ]);
+      setOfflineData({
+        favorites: favorites.length,
+        notes: notes.length,
+        history: history.length,
+        storageUsed: storage.used,
+        storageQuota: storage.quota,
+      });
+    } catch (error) {
+      console.error('Erro ao carregar dados offline:', error);
+    } finally {
+      setLoadingOffline(false);
+    }
+  };
+
+  useEffect(() => {
+    loadOfflineData();
+  }, []);
 
   const downloadedCount = versions.filter((v) => v.downloaded).length;
   const totalSize = versions.filter((v) => v.downloaded).length * 2.4;
@@ -299,6 +341,79 @@ export const DownloadsPage: React.FC = () => {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* Dados Offline Locais */}
+        <div className="mt-8 bg-white dark:bg-zinc-900 border border-slate-100 dark:border-zinc-800 rounded-3xl overflow-hidden">
+          <div className="p-6 border-b border-slate-100 dark:border-zinc-800 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Database className="h-5 w-5 text-purple-600" />
+              <h2 className="text-lg font-black">Dados Armazenados Localmente</h2>
+            </div>
+            <Button variant="ghost" size="sm" onClick={loadOfflineData} disabled={loadingOffline}>
+              <RefreshCw className={cn('h-4 w-4', loadingOffline && 'animate-spin')} />
+            </Button>
+          </div>
+
+          <div className="p-6">
+            <div className="grid grid-cols-3 gap-4 mb-6">
+              <div className="text-center p-4 bg-pink-50 dark:bg-pink-900/20 rounded-2xl">
+                <Heart className="h-6 w-6 text-pink-500 mx-auto mb-2" />
+                <p className="text-2xl font-black">{offlineData.favorites}</p>
+                <p className="text-xs font-bold text-muted-foreground">Favoritos</p>
+              </div>
+              <div className="text-center p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-2xl">
+                <StickyNote className="h-6 w-6 text-yellow-500 mx-auto mb-2" />
+                <p className="text-2xl font-black">{offlineData.notes}</p>
+                <p className="text-xs font-bold text-muted-foreground">Anotações</p>
+              </div>
+              <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-2xl">
+                <History className="h-6 w-6 text-blue-500 mx-auto mb-2" />
+                <p className="text-2xl font-black">{offlineData.history}</p>
+                <p className="text-xs font-bold text-muted-foreground">Histórico</p>
+              </div>
+            </div>
+
+            {offlineData.storageQuota > 0 && (
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="font-medium">Armazenamento usado</span>
+                  <span className="text-muted-foreground">
+                    {(offlineData.storageUsed / 1024 / 1024).toFixed(2)} MB de{' '}
+                    {(offlineData.storageQuota / 1024 / 1024).toFixed(0)} MB
+                  </span>
+                </div>
+                <div className="h-2 bg-slate-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-purple-500 to-blue-500 rounded-full"
+                    style={{
+                      width: `${(offlineData.storageUsed / offlineData.storageQuota) * 100}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-3 mt-6">
+              <Button
+                variant="outline"
+                className="flex-1 h-11 rounded-xl font-semibold"
+                onClick={async () => {
+                  const data = await offlineService.exportData();
+                  const blob = new Blob([data], { type: 'application/json' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `bibleapp-backup-${new Date().toISOString().split('T')[0]}.json`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+              >
+                <Upload className="mr-2 h-4 w-4" />
+                Exportar Dados
+              </Button>
+            </div>
           </div>
         </div>
 

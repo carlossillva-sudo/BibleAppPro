@@ -22,6 +22,7 @@ import {
 import { Button } from '../components/ui/Button';
 import { useAuthStore } from '../store/authStore';
 import { usePreferencesStore } from '../store/preferencesStore';
+import { useGamificationStore } from '../store/gamificationStore';
 
 interface Notification {
   id: number;
@@ -106,10 +107,23 @@ export const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const lastRead = usePreferencesStore((s) => s.lastRead);
+  const {
+    xp,
+    getCurrentLevel,
+    getNextLevel,
+    getProgressToNextLevel,
+    currentStreak,
+    chaptersRead,
+    unlockedAchievements,
+  } = useGamificationStore();
 
   const [notifications, setNotifications] = useState<Notification[]>(MOCK_NOTIFICATIONS);
   const [showNotifications, setShowNotifications] = useState(false);
   const [copiedVerse, setCopiedVerse] = useState(false);
+
+  const currentLevel = getCurrentLevel();
+  const nextLevel = getNextLevel();
+  const progressToNext = getProgressToNextLevel();
 
   const dailyVerse = getDailyVerse();
   const unreadCount = notifications.filter((n) => n.unread).length;
@@ -280,6 +294,51 @@ export const DashboardPage: React.FC = () => {
             )}
           </div>
         </header>
+
+        {/* Gamification Progress Bar */}
+        <div className="mb-6 bg-gradient-to-r from-primary/10 to-purple-500/10 rounded-2xl p-4 border border-primary/20">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">{currentLevel.icon}</span>
+              <div>
+                <p className="font-black text-sm">
+                  {currentLevel.title}{' '}
+                  <span className="text-muted-foreground">Nível {currentLevel.level}</span>
+                </p>
+                <p className="text-xs text-muted-foreground">{xp} XP</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="text-right">
+                <p className="text-xs font-bold text-muted-foreground">Sequência</p>
+                <p className="text-lg font-black text-orange-500">{currentStreak} dias 🔥</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs font-bold text-muted-foreground">Capítulos</p>
+                <p className="text-lg font-black text-primary">{chaptersRead}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs font-bold text-muted-foreground">Conquistas</p>
+                <p className="text-lg font-black text-yellow-500">
+                  {unlockedAchievements.length} 🏆
+                </p>
+              </div>
+            </div>
+          </div>
+          {nextLevel && (
+            <div className="relative">
+              <div className="h-3 bg-primary/20 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-primary to-purple-500 rounded-full transition-all duration-500"
+                  style={{ width: `${progressToNext}%` }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground mt-1 text-center">
+                {nextLevel.xpRequired - xp} XP para {nextLevel.title} {nextLevel.icon}
+              </p>
+            </div>
+          )}
+        </div>
 
         {/* Daily Verse Card */}
         <section className="mb-8">
