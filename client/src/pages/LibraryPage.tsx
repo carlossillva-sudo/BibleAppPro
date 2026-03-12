@@ -1,11 +1,9 @@
-import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useState, useEffect } from 'react';
 import { BookOpen, BookMarked, ChevronRight, Layers, RefreshCw, AlertCircle } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Button } from '../components/ui/Button';
 import { useNavigate } from 'react-router-dom';
-import api from '../services/api';
-import { usePreferencesStore } from '../store/preferencesStore';
+import { bibleClient, BIBLE_VERSIONS, type BibleVersion } from '../services/bibleClient.service';
 import { cn } from '../utils/cn';
 
 interface BookInfo {
@@ -16,39 +14,35 @@ interface BookInfo {
 
 export const LibraryPage: React.FC = () => {
   const navigate = useNavigate();
-  const { bibleVersion } = usePreferencesStore();
-  const [selectedVersion, setSelectedVersion] = useState(bibleVersion);
+  const [selectedVersion, setSelectedVersion] = useState('ARA');
+  const [versions] = useState<BibleVersion[]>(BIBLE_VERSIONS);
+  const [books, setBooks] = useState<BookInfo[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isError, setIsError] = useState(false);
 
-  const { data: versions } = useQuery({
-    queryKey: ['bible-versions'],
-    queryFn: async () => (await api.get('/bible/versoes')).data,
-  });
+  const loadBooks = async () => {
+    setIsLoading(true);
+    setIsError(false);
+    try {
+      const data = await bibleClient.getBooks(selectedVersion);
+      setBooks(data);
+    } catch (error) {
+      console.error('Error loading books:', error);
+      setIsError(true);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-  const {
-    data: books,
-    isLoading,
-    isError,
-    error,
-    refetch,
-  } = useQuery<BookInfo[]>({
-    queryKey: ['library-books', selectedVersion],
-    queryFn: async () => {
-      const response = await api.get('/bible/livros', { params: { v: selectedVersion } });
-      return response.data;
-    },
-    staleTime: 1000 * 60 * 5,
-    retry: 2,
-  });
+  useEffect(() => {
+    loadBooks();
+  }, [selectedVersion]);
 
-  const livrosAntigo = books?.filter((b) => parseInt(b.number) <= 39) || [];
-  const livrosNovo = books?.filter((b) => parseInt(b.number) > 39) || [];
+  const livrosAntigo = books.filter((b) => parseInt(b.number) <= 39);
+  const livrosNovo = books.filter((b) => parseInt(b.number) > 39);
 
   const handleLivroClick = (book: BookInfo) => {
     navigate(`/reader/${book.number}/1?v=${selectedVersion}`);
-  };
-
-  const handleVersionChange = (version: string) => {
-    setSelectedVersion(version);
   };
 
   return (
@@ -65,10 +59,10 @@ export const LibraryPage: React.FC = () => {
         <div className="mt-4 mb-6">
           <label className="text-sm font-bold text-muted-foreground mb-2 block">Versão:</label>
           <div className="flex flex-wrap gap-2">
-            {versions?.map((v: { id: string; name: string }) => (
+            {versions.map((v) => (
               <button
                 key={v.id}
-                onClick={() => handleVersionChange(v.id)}
+                onClick={() => setSelectedVersion(v.id)}
                 className={cn(
                   'px-4 py-2 rounded-xl text-sm font-bold transition-all',
                   selectedVersion === v.id
@@ -95,17 +89,19 @@ export const LibraryPage: React.FC = () => {
           <div className="text-center py-12">
             <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
             <h3 className="text-lg font-bold mb-2">Erro ao carregar livros</h3>
-            <p className="text-muted-foreground mb-4">{String(error)}</p>
-            <Button onClick={() => refetch()} className="gap-2">
+            <p className="text-muted-foreground mb-4">
+              Verifique se o arquivo XML está disponível.
+            </p>
+            <Button onClick={loadBooks} className="gap-2">
               <RefreshCw className="h-4 w-4" /> Tentar novamente
             </Button>
           </div>
-        ) : books?.length === 0 ? (
+        ) : books.length === 0 ? (
           <div className="text-center py-12">
             <BookOpen className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-lg font-bold mb-2">Nenhum livro encontrado</h3>
-            <p className="text-muted-foreground mb-4">Tente selecionar outra versão da Bíblia.</p>
-            <Button onClick={() => refetch()} variant="outline" className="gap-2">
+            <p className="text-muted-foreground mb-4">Tente selecionar outra versão da Biblia.</p>
+            <Button onClick={loadBooks} variant="outline" className="gap-2">
               <RefreshCw className="h-4 w-4" /> Recarregar
             </Button>
           </div>
@@ -193,7 +189,7 @@ export const LibraryPage: React.FC = () => {
 
         <div className="text-center mt-12 pt-6 border-t border-slate-200 dark:border-zinc-800">
           <p className="text-sm text-muted-foreground">
-            - 2026 BibleAppPro - {books?.length || 66} livros biblicos
+            - 2026 BibleAppPro - {books.length} livros biblicos
           </p>
         </div>
       </div>
