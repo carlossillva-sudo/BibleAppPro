@@ -136,60 +136,69 @@ class BibleClientService {
     const version = BIBLE_VERSIONS.find((v) => v.id === versionId) || BIBLE_VERSIONS[0];
 
     try {
+      console.log('Fetching:', `/${version.filename}`);
       const response = await fetch(`/${version.filename}`);
       if (!response.ok) {
-        throw new Error(`Failed to load ${version.filename}`);
+        throw new Error(`Failed to load ${version.filename}: ${response.status}`);
       }
 
       const xmlText = await response.text();
+      console.log('XML loaded, length:', xmlText.length);
 
       const parser = new DOMParser();
       const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
 
       const books: BibleBook[] = [];
 
-      const bookNodes = xmlDoc.getElementsByTagName('Book');
+      // XML structure: bible > testament > book > chapter > verse
+      const testamentNodes = xmlDoc.getElementsByTagName('testament');
+      console.log('Testaments found:', testamentNodes.length);
 
-      for (let i = 0; i < bookNodes.length; i++) {
-        const bookNode = bookNodes[i];
-        const bookNumber =
-          bookNode.getAttribute('number') || bookNode.getAttribute('name') || String(i + 1);
-        const bookName = bookNode.getAttribute('name') || 'Unknown';
+      for (let t = 0; t < testamentNodes.length; t++) {
+        const testamentNode = testamentNodes[t];
+        const bookNodes = testamentNode.getElementsByTagName('book');
 
-        const chapters: BibleChapter[] = [];
-        const chapterNodes = bookNode.getElementsByTagName('Chapter');
+        for (let i = 0; i < bookNodes.length; i++) {
+          const bookNode = bookNodes[i];
+          const bookNumber = bookNode.getAttribute('number') || String(books.length + 1);
+          const bookName = bookNode.getAttribute('name') || 'Unknown';
 
-        for (let j = 0; j < chapterNodes.length; j++) {
-          const chapterNode = chapterNodes[j];
-          const chapterNumber = chapterNode.getAttribute('number') || String(j + 1);
+          const chapters: BibleChapter[] = [];
+          const chapterNodes = bookNode.getElementsByTagName('chapter');
 
-          const verses: BibleVerse[] = [];
-          const verseNodes = chapterNode.getElementsByTagName('Verse');
+          for (let j = 0; j < chapterNodes.length; j++) {
+            const chapterNode = chapterNodes[j];
+            const chapterNumber = chapterNode.getAttribute('number') || String(j + 1);
 
-          for (let k = 0; k < verseNodes.length; k++) {
-            const verseNode = verseNodes[k];
-            const verseNumber = verseNode.getAttribute('number') || String(k + 1);
-            const verseText = verseNode.textContent || '';
+            const verses: BibleVerse[] = [];
+            const verseNodes = chapterNode.getElementsByTagName('verse');
 
-            verses.push({
-              number: verseNumber,
-              text: verseText.trim(),
+            for (let k = 0; k < verseNodes.length; k++) {
+              const verseNode = verseNodes[k];
+              const verseNumber = verseNode.getAttribute('number') || String(k + 1);
+              const verseText = verseNode.textContent || '';
+
+              verses.push({
+                number: verseNumber,
+                text: verseText.trim(),
+              });
+            }
+
+            chapters.push({
+              number: chapterNumber,
+              verses,
             });
           }
 
-          chapters.push({
-            number: chapterNumber,
-            verses,
+          books.push({
+            number: bookNumber,
+            name: bookName,
+            chapters,
           });
         }
-
-        books.push({
-          number: bookNumber,
-          name: bookName,
-          chapters,
-        });
       }
 
+      console.log('Books parsed:', books.length);
       return books;
     } catch (error) {
       console.error('Error loading Bible XML:', error);
