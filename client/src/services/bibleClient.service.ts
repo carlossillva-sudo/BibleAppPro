@@ -150,14 +150,22 @@ class BibleClientService {
   async searchContent(
     query: string,
     versionId: string = 'ARA'
-  ): Promise<{ bookId: string; bookName: string; chapter: string; verse: string; text: string }[]> {
+  ): Promise<
+    {
+      bookNumber: string;
+      bookName: string;
+      chapterNumber: string;
+      verseNumber: string;
+      content: string;
+    }[]
+  > {
     const books = await this.loadBible(versionId);
     const results: {
-      bookId: string;
+      bookNumber: string;
       bookName: string;
-      chapter: string;
-      verse: string;
-      text: string;
+      chapterNumber: string;
+      verseNumber: string;
+      content: string;
     }[] = [];
     const normalizedQuery = query.toLowerCase();
 
@@ -166,11 +174,11 @@ class BibleClientService {
         for (const verse of chapter.verses) {
           if (verse.text.toLowerCase().includes(normalizedQuery)) {
             results.push({
-              bookId: book.number,
+              bookNumber: book.number,
               bookName: book.name,
-              chapter: chapter.number,
-              verse: verse.number,
-              text: verse.text,
+              chapterNumber: chapter.number,
+              verseNumber: verse.number,
+              content: verse.text,
             });
           }
         }

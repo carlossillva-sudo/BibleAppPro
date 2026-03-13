@@ -19,7 +19,7 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import api from '../services/api';
+import { bibleClient } from '../services/bibleClient.service';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { usePreferencesStore } from '../store/preferencesStore';
@@ -535,7 +535,7 @@ export const SearchPage: React.FC = () => {
 
   const { data: books } = useQuery<BibleBook[]>({
     queryKey: ['search-books'],
-    queryFn: async () => (await api.get('/bible/livros')).data,
+    queryFn: async () => await bibleClient.getBooks(bibleVersion),
   });
 
   const autocompleteSuggestions = React.useMemo(() => {
@@ -585,18 +585,10 @@ export const SearchPage: React.FC = () => {
     localStorage.removeItem(RECENT_SEARCHES_KEY);
   };
 
-  const { data: verseResults, isLoading: isSearching } = useQuery<SearchResult[]>({
+  const { data: verseResults, isLoading: isSearching } = useQuery({
     queryKey: ['search-verses', debouncedQuery, testamentFilter, bookFilter, bibleVersion],
     queryFn: async () => {
-      let url = `/bible/busca?q=${debouncedQuery}&v=${bibleVersion}`;
-      if (testamentFilter !== 'all') {
-        const booksToFilter = testamentFilter === 'old' ? OLD_TESTAMENT : NEW_TESTAMENT;
-        url += `&livros=${booksToFilter.join(',')}`;
-      }
-      if (bookFilter) {
-        url += `&livros=${bookFilter}`;
-      }
-      return (await api.get(url)).data;
+      return await bibleClient.searchContent(debouncedQuery, bibleVersion);
     },
     enabled: debouncedQuery.length >= 2,
   });
@@ -1045,7 +1037,7 @@ export const SearchPage: React.FC = () => {
                           <ArrowRight className="h-4 w-4 text-primary opacity-0 group-hover:opacity-100 transition-all shrink-0" />
                         </div>
                         <p className="text-sm leading-relaxed text-foreground/90 line-clamp-3">
-                          {highlightTerm(v.text || v.content || '', debouncedQuery)}
+                          {highlightTerm(v.content, debouncedQuery)}
                         </p>
                       </button>
                     </motion.div>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import api from '../../services/api';
+import { bibleClient, type BibleVersion } from '../../services/bibleClient.service';
 import { usePreferencesStore } from '../../store/preferencesStore';
 import { cn } from '../../utils/cn';
 import {
@@ -10,11 +10,6 @@ import {
   Info as InfoIcon,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-
-interface BibleVersion {
-  id: string;
-  name: string;
-}
 
 const VERSION_ABBREVIATIONS: Record<string, string> = {
   '1969': 'ARC',
@@ -48,7 +43,7 @@ export const VersionSelector: React.FC<{ className?: string }> = ({ className })
 
   const { data: versions, isLoading } = useQuery<BibleVersion[]>({
     queryKey: ['bible-versions'],
-    queryFn: async () => (await api.get('/bible/versoes')).data,
+    queryFn: async () => await bibleClient.getVersions(),
   });
 
   React.useEffect(() => {

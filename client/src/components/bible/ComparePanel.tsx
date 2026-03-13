@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import api from '../../services/api';
+import { bibleClient } from '../../services/bibleClient.service';
 import { Button } from '../ui/Button';
 import { X, ChevronDown, Check, Columns } from 'lucide-react';
 import { cn } from '../../utils/cn';
@@ -55,9 +55,12 @@ export const ComparePanel: React.FC<ComparePanelProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'side-by-side' | 'inline'>('side-by-side');
 
-  const { data: versions } = useQuery<string[]>({
+  const { data: versions } = useQuery({
     queryKey: ['bible-versions-compare'],
-    queryFn: async () => (await api.get('/bible/versoes')).data,
+    queryFn: async () => {
+      const vers = await bibleClient.getVersions();
+      return vers.map((v) => v.id);
+    },
   });
 
   useEffect(() => {
@@ -87,10 +90,8 @@ export const ComparePanel: React.FC<ComparePanelProps> = ({
       const results: Record<string, Verse[]> = {};
       for (const version of selectedVersions) {
         try {
-          const res = await api.get(`/bible/livros/${bookId}/capitulos/${chapterId}/versiculos`, {
-            params: { v: version },
-          });
-          results[version] = res.data;
+          const verses = await bibleClient.getChapter(bookId, chapterId, version);
+          results[version] = verses;
         } catch (err) {
           console.error(`Error loading version ${version}:`, err);
           results[version] = [];

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence, useScroll, useSpring } from 'framer-motion';
-import api from '../services/api';
+import { bibleClient } from '../services/bibleClient.service';
 import { Button } from '../components/ui/Button';
 import {
   Heart,
@@ -134,7 +134,7 @@ export const ReaderPage: React.FC = () => {
 
   const { data: books } = useQuery<BookInfo[]>({
     queryKey: ['reader-books', bibleVersion],
-    queryFn: async () => (await api.get('/bible/livros', { params: { v: bibleVersion } })).data,
+    queryFn: async () => await bibleClient.getBooks(bibleVersion),
   });
 
   const currentBook = books?.find((b) => b.number === bookId);
@@ -149,14 +149,12 @@ export const ReaderPage: React.FC = () => {
     initialPageParam: chapterId,
     queryFn: async ({ pageParam }) => {
       const chId = pageParam as string;
-      const res = await api.get(`/bible/livros/${bookId}/capitulos/${chId}/versiculos`, {
-        params: { v: bibleVersion },
-      });
+      const verses = await bibleClient.getChapter(bookId, chId, bibleVersion);
       return {
         bookId,
         bookName: currentBook?.name || '',
         chapterId: chId,
-        verses: res.data,
+        verses,
       };
     },
     getNextPageParam: (lastPage) => {
