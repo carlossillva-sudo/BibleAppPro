@@ -51,8 +51,12 @@ class BibleClientService {
   }
 
   async getBooks(
-    versionId: string = 'ARA'
+    versionId: string = 'ARA',
+    forceReload: boolean = false
   ): Promise<{ number: string; name: string; chaptersCount: number }[]> {
+    if (forceReload) {
+      this.cache.delete(versionId);
+    }
     const books = await this.loadBible(versionId);
     return books.map((book) => ({
       number: book.number,

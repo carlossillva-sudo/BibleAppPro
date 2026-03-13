@@ -20,11 +20,13 @@ export const LibraryPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isError, setIsError] = useState(false);
 
-  const loadBooks = async () => {
+  const loadBooks = async (version: string) => {
     setIsLoading(true);
     setIsError(false);
     try {
-      const data = await bibleClient.getBooks(selectedVersion);
+      console.log('Loading books for version:', version);
+      const data = await bibleClient.getBooks(version, true); // force reload
+      console.log('Loaded books:', data.length);
       setBooks(data);
     } catch (error) {
       console.error('Error loading books:', error);
@@ -35,7 +37,7 @@ export const LibraryPage: React.FC = () => {
   };
 
   useEffect(() => {
-    loadBooks();
+    loadBooks(selectedVersion);
   }, [selectedVersion]);
 
   const livrosAntigo = books.filter((b) => parseInt(b.number) <= 39);
@@ -92,7 +94,7 @@ export const LibraryPage: React.FC = () => {
             <p className="text-muted-foreground mb-4">
               Verifique se o arquivo XML está disponível.
             </p>
-            <Button onClick={loadBooks} className="gap-2">
+            <Button onClick={() => loadBooks(selectedVersion)} className="gap-2">
               <RefreshCw className="h-4 w-4" /> Tentar novamente
             </Button>
           </div>
@@ -101,7 +103,7 @@ export const LibraryPage: React.FC = () => {
             <BookOpen className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-lg font-bold mb-2">Nenhum livro encontrado</h3>
             <p className="text-muted-foreground mb-4">Tente selecionar outra versão da Biblia.</p>
-            <Button onClick={loadBooks} variant="outline" className="gap-2">
+            <Button onClick={() => loadBooks(selectedVersion)} variant="outline" className="gap-2">
               <RefreshCw className="h-4 w-4" /> Recarregar
             </Button>
           </div>
